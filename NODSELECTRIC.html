@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Voltledger — Electricity Bill Management</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#12161D;
+    --panel:#FFFFFF;
+    --panel-2:#F6F4FC;
+    --hairline:#E6E1F5;
+    --hairline-soft:#EFEBFA;
+    --text:#221F2E;
+    --muted:#726E86;
+    --amber:#F5A524;
+    --amber-dim:#FFF0D6;
+    --teal:#12B886;
+    --teal-dim:#DEF7EC;
+    --rust:#F0483E;
+    --rust-dim:#FDE3E1;
+    --violet:#7C5CFC;
+    --violet-dim:#ECE6FF;
+    --blue:#3B82F6;
+    --blue-dim:#DCE9FF;
+    --pink:#FF6FA0;
+    --pink-dim:#FFE3ED;
+    --purple:#A855F7;
+    --purple-dim:#F4E7FF;
+    --radius:10px;
+    --radius-sm:6px;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ height:100%; }
+  body{
+    margin:0;
+    background:
+      radial-gradient(circle at 8% 0%, rgba(124,92,252,0.14), transparent 42%),
+      radial-gradient(circle at 92% 12%, rgba(255,111,160,0.14), transparent 40%),
+      radial-gradient(circle at 50% 100%, rgba(245,165,36,0.12), transparent 45%),
+      linear-gradient(180deg, #FBFAFF, #F5F3FC);
+    color:var(--text);
+    font-family:'IBM Plex Sans', system-ui, sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .mono{ font-family:'IBM Plex Mono', ui-monospace, monospace; }
+  a{ color:inherit; }
+
+  .wrap{ max-width:1080px; margin:0 auto; padding:28px 20px 80px; }
+
+  /* ---------- Header ---------- */
+  .header{
+    display:flex; align-items:center; justify-content:space-between;
+    gap:20px; flex-wrap:wrap;
+    padding-bottom:22px; margin-bottom:22px;
+    border-bottom:1px solid var(--hairline);
+  }
+  .brand{ display:flex; align-items:center; gap:12px; }
+  .brand svg{ width:30px; height:30px; flex:none; }
+  .brand-text h1{
+    margin:0; font-size:20px; font-weight:700; letter-spacing:0.2px;
+    background:linear-gradient(90deg, var(--violet), var(--pink));
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  .brand-text p{ margin:2px 0 0; font-size:12.5px; color:var(--muted); }
+
+  .readout{
+    text-align:right;
+    padding:8px 16px;
+    border:1px solid var(--hairline);
+    border-radius:var(--radius);
+    background:linear-gradient(135deg, var(--amber-dim), var(--pink-dim));
+  }
+  .readout .label{ font-size:11px; color:var(--muted); }
+  .readout .value{ font-size:22px; font-weight:700; color:var(--rust); line-height:1.3; }
+
+  /* ---------- Tabs ---------- */
+  .tabs{
+    display:flex; gap:4px; margin-bottom:22px;
+    border-bottom:1px solid var(--hairline);
+    overflow-x:auto;
+  }
+  .tab-btn{
+    appearance:none; border:none; background:none; color:var(--muted);
+    font-family:inherit; font-size:14px; font-weight:500;
+    padding:10px 16px; cursor:pointer; white-space:nowrap;
+    border-bottom:2px solid transparent; margin-bottom:-1px;
+    transition:color .15s ease, border-color .15s ease;
+  }
+  .tab-btn:hover{ color:var(--text); }
+  .tab-btn.active{ color:var(--violet); border-bottom-color:var(--violet); }
+
+  .view{ display:none; }
+  .view.active{ display:block; }
+
+  /* ---------- Stat tiles ---------- */
+  .stats{ display:grid; grid-template-columns:repeat(4, 1fr); gap:14px; margin-bottom:26px; }
+  .stat{
+    border:1px solid var(--hairline); border-radius:var(--radius);
+    background:var(--panel); padding:16px; border-top:3px solid var(--violet);
+    box-shadow:0 2px 10px rgba(124,92,252,0.06);
+  }
+  .stat:nth-child(1){ border-top-color:var(--violet); }
+  .stat:nth-child(2){ border-top-color:var(--blue); }
+  .stat:nth-child(3){ border-top-color:var(--rust); }
+  .stat:nth-child(4){ border-top-color:var(--teal); }
+  .stat .label{ font-size:12px; color:var(--muted); margin-bottom:8px; }
+  .stat .value{ font-size:26px; font-weight:700; }
+  .stat .value.amber{ color:var(--amber); }
+  .stat .value.teal{ color:var(--teal); }
+  .stat .value.rust{ color:var(--rust); }
+
+  @media (max-width:720px){ .stats{ grid-template-columns:repeat(2,1fr); } }
+
+  /* ---------- Panels & section headings ---------- */
+  .panel{
+    border:1px solid var(--hairline); border-radius:var(--radius);
+    background:var(--panel); padding:20px; margin-bottom:20px;
+  }
+  .panel-head{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px; flex-wrap:wrap; }
+  .panel-head h2{ margin:0; font-size:16px; font-weight:600; }
+  .panel-head .sub{ font-size:12.5px; color:var(--muted); margin-top:3px; }
+
+  /* ---------- Buttons ---------- */
+  .btn{
+    appearance:none; border:1px solid var(--hairline); border-radius:var(--radius-sm);
+    background:var(--panel-2); color:var(--text); font-family:inherit;
+    font-size:13.5px; font-weight:500; padding:9px 14px; cursor:pointer;
+    transition:border-color .15s ease, background .15s ease, transform .1s ease;
+  }
+  .btn:hover{ border-color:var(--violet); }
+  .btn-primary{
+    background:linear-gradient(90deg, var(--violet), var(--pink));
+    border-color:transparent; color:#FFFFFF; font-weight:600;
+  }
+  .btn-primary:hover{ filter:brightness(1.06); transform:translateY(-1px); }
+  .btn-danger{ color:var(--rust); }
+  .btn-danger:hover{ border-color:var(--rust); background:var(--rust-dim); }
+  .btn-sm{ padding:6px 10px; font-size:12.5px; }
+  .btn:disabled{ opacity:.45; cursor:not-allowed; }
+
+  /* ---------- Forms ---------- */
+  .field{ margin-bottom:16px; }
+  .field label{ display:block; font-size:12.5px; color:var(--muted); margin-bottom:6px; }
+  .field input, .field select{
+    width:100%; background:#FFFFFF; border:1px solid var(--hairline);
+    border-radius:var(--radius-sm); color:var(--text); font-family:inherit;
+    font-size:14px; padding:10px 12px; outline:none;
+    transition:border-color .15s ease, box-shadow .15s ease;
+  }
+  .field input.mono, .field select.mono{ font-family:'IBM Plex Mono', monospace; }
+  .field input:focus, .field select:focus{ border-color:var(--violet); box-shadow:0 0 0 3px var(--violet-dim); }
+  .field .hint{ font-size:11.5px; color:var(--muted); margin-top:5px; }
+  .grid-2{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  @media (max-width:600px){ .grid-2{ grid-template-columns:1fr; } }
+
+  /* ---------- Tables ---------- */
+  table{ width:100%; border-collapse:collapse; font-size:13.5px; }
+  thead th{
+    text-align:left; font-weight:500; color:var(--muted); font-size:12px;
+    padding:0 10px 10px; border-bottom:1px solid var(--hairline);
+  }
+  tbody td{ padding:12px 10px; border-bottom:1px solid var(--hairline-soft); vertical-align:middle; }
+  tbody tr:last-child td{ border-bottom:none; }
+  tbody tr:hover{ background:var(--violet-dim); }
+  .table-scroll{ overflow-x:auto; }
+  .num{ font-family:'IBM Plex Mono', monospace; }
+  .cell-muted{ color:var(--muted); }
+
+  /* ---------- Badges ---------- */
+  .badge{
+    display:inline-flex; align-items:center; gap:6px;
+    font-size:12px; font-weight:500; padding:3px 9px; border-radius:100px;
+  }
+  .badge::before{ content:''; width:6px; height:6px; border-radius:50%; }
+  .badge.paid{ background:var(--teal-dim); color:#0C8F68; }
+  .badge.paid::before{ background:var(--teal); }
+  .badge.unpaid{ background:var(--rust-dim); color:#C8362D; }
+  .badge.unpaid::before{ background:var(--rust); }
+  .badge.type-domestic{ background:var(--blue-dim); color:#2563EB; }
+  .badge.type-domestic::before{ background:var(--blue); }
+  .badge.type-commercial{ background:var(--pink-dim); color:#DB3E7A; }
+  .badge.type-commercial::before{ background:var(--pink); }
+  .badge.type-industrial{ background:var(--purple-dim); color:#8B2FE0; }
+  .badge.type-industrial::before{ background:var(--purple); }
+
+  /* ---------- Empty state ---------- */
+  .empty{
+    text-align:center; padding:40px 20px; color:var(--muted); font-size:14px;
+  }
+
+  /* ---------- Toast ---------- */
+  #toast-stack{ position:fixed; right:20px; bottom:20px; display:flex; flex-direction:column; gap:8px; z-index:50; }
+  .toast{
+    background:#FFFFFF; border:1px solid var(--hairline); border-left:3px solid var(--violet);
+    border-radius:var(--radius-sm); padding:11px 16px; font-size:13.5px; max-width:320px;
+    box-shadow:0 6px 18px rgba(124,92,252,.18);
+    animation:toast-in .18s ease;
+  }
+  .toast.err{ border-left-color:var(--rust); }
+  @keyframes toast-in{ from{ opacity:0; transform:translateY(6px); } to{ opacity:1; transform:translateY(0); } }
+
+  /* ---------- Bill detail overlay ---------- */
+  .overlay{
+    position:fixed; inset:0; background:rgba(40,30,70,.35); backdrop-filter:blur(2px);
+    display:none; align-items:center; justify-content:center; padding:20px; z-index:40;
+  }
+  .overlay.open{ display:flex; }
+  .detail-card{
+    width:100%; max-width:420px; background:var(--panel); border:1px solid var(--hairline);
+    border-radius:var(--radius); padding:24px; position:relative;
+    box-shadow:0 20px 50px rgba(80,40,140,.2);
+  }
+  .detail-card h3{ margin:0 0 4px; font-size:16px; }
+  .detail-card .sub{ color:var(--muted); font-size:12.5px; margin-bottom:18px; }
+  .detail-row{ display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--hairline-soft); font-size:13.5px; }
+  .detail-row:last-of-type{ border-bottom:none; }
+  .detail-row .k{ color:var(--muted); }
+  .detail-row .v{ font-family:'IBM Plex Mono', monospace; }
+  .detail-total{ display:flex; justify-content:space-between; margin-top:14px; padding-top:14px; border-top:1px solid var(--hairline); }
+  .detail-total .k{ font-weight:600; }
+  .detail-total .v{ font-family:'IBM Plex Mono', monospace; font-weight:700; font-size:18px; color:var(--violet); }
+  .detail-actions{ display:flex; gap:8px; margin-top:20px; }
+  .detail-actions .btn{ flex:1; }
+  .close-x{ position:absolute; top:16px; right:16px; }
+
+  .filters{ display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap; }
+  .filters select{
+    background:#FFFFFF; border:1px solid var(--hairline); color:var(--text);
+    font-family:inherit; font-size:13px; padding:8px 10px; border-radius:var(--radius-sm);
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <div class="header">
+    <div class="brand">
+      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="boltGrad" x1="4" y1="2" x2="20" y2="22" gradientUnits="userSpaceOnUse">
+            <stop offset="0" stop-color="#7C5CFC"/>
+            <stop offset="0.5" stop-color="#FF6FA0"/>
+            <stop offset="1" stop-color="#F5A524"/>
+          </linearGradient>
+        </defs>
+        <path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z" fill="url(#boltGrad)" stroke="url(#boltGrad)" stroke-width="1.6" stroke-linejoin="round"/>
+      </svg>
+      <div class="brand-text">
+        <h1>Voltledger</h1>
+        <p>Metering, billing, and payment tracking</p>
+      </div>
+    </div>
+    <div class="readout">
+      <div class="label">Outstanding</div>
+      <div class="value mono" id="hdrOutstanding">Rs. 0.00</div>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
+    <button class="tab-btn" data-tab="customers">Customers</button>
+    <button class="tab-btn" data-tab="newbill">New bill</button>
+    <button class="tab-btn" data-tab="bills">Bills</button>
+  </div>
+
+  <!-- ============ DASHBOARD ============ -->
+  <div class="view active" id="view-dashboard">
+    <div class="stats">
+      <div class="stat"><div class="label">Customers</div><div class="value" id="statCustomers" style="color:var(--violet);">0</div></div>
+      <div class="stat"><div class="label">Bills issued</div><div class="value" id="statBills" style="color:var(--blue);">0</div></div>
+      <div class="stat"><div class="label">Outstanding</div><div class="value rust mono" id="statOutstanding">Rs. 0.00</div></div>
+      <div class="stat"><div class="label">Collected</div><div class="value teal mono" id="statCollected">Rs. 0.00</div></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>Recent bills</h2>
+          <div class="sub">Last 6 bills generated, most recent first</div>
+        </div>
+        <button class="btn" data-goto="bills">View all</button>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Bill</th><th>Customer</th><th>Units</th><th>Total</th><th>Due</th><th>Status</th></tr></thead>
+          <tbody id="recentBillsBody"></tbody>
+        </table>
+      </div>
+      <div class="empty" id="recentBillsEmpty" style="display:none;">No bills generated yet. Create one from the New bill tab.</div>
+    </div>
+  </div>
+
+  <!-- ============ CUSTOMERS ============ -->
+  <div class="view" id="view-customers">
+    <div class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>Add customer</h2>
+          <div class="sub">Registers a new connection and assigns a customer ID</div>
+        </div>
+      </div>
+      <form id="customerForm">
+        <div class="grid-2">
+          <div class="field">
+            <label for="custName">Name</label>
+            <input type="text" id="custName" required>
+          </div>
+          <div class="field">
+            <label for="custMeter">Meter number</label>
+            <input type="text" id="custMeter" class="mono" required>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="field">
+            <label for="custAddress">Address</label>
+            <input type="text" id="custAddress" required>
+          </div>
+          <div class="field">
+            <label for="custType">Connection type</label>
+            <select id="custType">
+              <option value="DOMESTIC">Domestic</option>
+              <option value="COMMERCIAL">Commercial</option>
+              <option value="INDUSTRIAL">Industrial</option>
+            </select>
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary">Add customer</button>
+      </form>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>All customers</h2>
+          <div class="sub" id="customerCountSub">0 registered</div>
+        </div>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>ID</th><th>Name</th><th>Meter</th><th>Type</th><th>Address</th><th></th></tr></thead>
+          <tbody id="customersBody"></tbody>
+        </table>
+      </div>
+      <div class="empty" id="customersEmpty" style="display:none;">No customers yet. Add the first one above to start billing.</div>
+    </div>
+  </div>
+
+  <!-- ============ NEW BILL ============ -->
+  <div class="view" id="view-newbill">
+    <div class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>Generate a bill</h2>
+          <div class="sub">Enter the current meter reading — charges are calculated automatically</div>
+        </div>
+      </div>
+      <form id="billForm">
+        <div class="field">
+          <label for="billCustomer">Customer</label>
+          <select id="billCustomer" class="mono" required></select>
+        </div>
+        <div class="grid-2">
+          <div class="field">
+            <label for="billPrevReading">Previous reading</label>
+            <input type="number" id="billPrevReading" class="mono" min="0" required>
+            <div class="hint" id="prevReadingHint"></div>
+          </div>
+          <div class="field">
+            <label for="billCurrReading">Current reading</label>
+            <input type="number" id="billCurrReading" class="mono" min="0" required>
+          </div>
+        </div>
+        <div class="panel" style="background:var(--panel-2); margin-bottom:16px;">
+          <div class="detail-row"><span class="k">Units consumed</span><span class="v" id="prevUnits">0</span></div>
+          <div class="detail-row"><span class="k">Energy charge</span><span class="v" id="prevEnergy">Rs. 0.00</span></div>
+          <div class="detail-row"><span class="k">Fixed charge</span><span class="v" id="prevFixed">Rs. 0.00</span></div>
+          <div class="detail-row"><span class="k">Surcharge (5%)</span><span class="v" id="prevSurcharge">Rs. 0.00</span></div>
+          <div class="detail-total"><span class="k">Estimated total</span><span class="v" id="prevTotal">Rs. 0.00</span></div>
+        </div>
+        <button type="submit" class="btn btn-primary">Generate bill</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============ BILLS ============ -->
+  <div class="view" id="view-bills">
+    <div class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>Bills</h2>
+          <div class="sub" id="billsCountSub">0 total</div>
+        </div>
+      </div>
+      <div class="filters">
+        <select id="filterCustomer"><option value="">All customers</option></select>
+        <select id="filterStatus">
+          <option value="">All statuses</option>
+          <option value="unpaid">Unpaid only</option>
+          <option value="paid">Paid only</option>
+        </select>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Bill</th><th>Customer</th><th>Units</th><th>Total</th><th>Due</th><th>Status</th><th></th></tr></thead>
+          <tbody id="billsBody"></tbody>
+        </table>
+      </div>
+      <div class="empty" id="billsEmpty" style="display:none;">Nothing here yet.</div>
+    </div>
+  </div>
+
+</div>
+
+<div class="overlay" id="detailOverlay">
+  <div class="detail-card" id="detailCard"></div>
+</div>
+
+<div id="toast-stack"></div>
+
+<script>
+(function(){
+
+  // ---------------- State ----------------
+  const state = { customers: [], bills: [], counters: { c:0, b:0 } };
+
+  const TARIFFS = {
+    DOMESTIC:   { thresholds:[100,200,400], rates:[3.50,4.50,6.00,7.50], fixed:50 },
+    COMMERCIAL: { thresholds:[100,200,300], rates:[6.00,8.00,10.00,12.00], fixed:150 },
+    INDUSTRIAL: { thresholds:[200,400,600], rates:[7.00,9.00,11.00,13.50], fixed:500 },
+  };
+  const TYPE_LABEL = { DOMESTIC:'Domestic', COMMERCIAL:'Commercial', INDUSTRIAL:'Industrial' };
+
+  function slabCharge(units, thresholds, rates){
+    let total = 0, remaining = units, lower = 0;
+    for(let i=0;i<thresholds.length;i++){
+      const bandSize = thresholds[i]-lower;
+      const inBand = Math.min(remaining, bandSize);
+      if(inBand>0){ total += inBand*rates[i]; remaining -= inBand; }
+      lower = thresholds[i];
+      if(remaining<=0) break;
+    }
+    if(remaining>0) total += remaining*rates[rates.length-1];
+    return round2(total);
+  }
+  function round2(v){ return Math.round(v*100)/100; }
+  function calcCharges(units, type){
+    const t = TARIFFS[type] || TARIFFS.DOMESTIC;
+    const energy = slabCharge(units, t.thresholds, t.rates);
+    const fixed = t.fixed;
+    const surcharge = round2(energy*0.05);
+    return { energy, fixed, surcharge, total: round2(energy+fixed+surcharge) };
+  }
+
+  function money(n){ return 'Rs. ' + n.toFixed(2); }
+  function esc(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function addDays(dateStr, days){ const d = new Date(dateStr+'T00:00:00'); d.setDate(d.getDate()+days); return d.toISOString().slice(0,10); }
+  function today(){ return new Date().toISOString().slice(0,10); }
+
+  // ---------------- Storage ----------------
+  async function loadState(){
+    try{ const r = await window.storage.get('customers', false); state.customers = JSON.parse(r.value); }catch(e){ state.customers = []; }
+    try{ const r = await window.storage.get('bills', false); state.bills = JSON.parse(r.value); }catch(e){ state.bills = []; }
+    try{ const r = await window.storage.get('counters', false); state.counters = JSON.parse(r.value); }catch(e){ state.counters = {c:0,b:0}; }
+  }
+  async function persist(key, value){
+    try{ await window.storage.set(key, JSON.stringify(value), false); }
+    catch(e){ console.error(e); toast('Could not save changes — they may be lost on reload.', true); }
+  }
+  const saveCustomers = () => persist('customers', state.customers);
+  const saveBills = () => persist('bills', state.bills);
+  const saveCounters = () => persist('counters', state.counters);
+
+  function nextCustomerId(){ state.counters.c += 1; saveCounters(); return 'C'+String(state.counters.c).padStart(4,'0'); }
+  function nextBillId(){ state.counters.b += 1; saveCounters(); return 'B'+String(state.counters.b).padStart(5,'0'); }
+
+  // ---------------- Toast ----------------
+  function toast(msg, isErr){
+    const stack = document.getElementById('toast-stack');
+    const el = document.createElement('div');
+    el.className = 'toast' + (isErr ? ' err' : '');
+    el.textContent = msg;
+    stack.appendChild(el);
+    setTimeout(()=>{ el.remove(); }, 3200);
+  }
+
+  // ---------------- Tabs ----------------
+  document.querySelectorAll('.tab-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=> switchTab(btn.dataset.tab));
+  });
+  document.querySelectorAll('[data-goto]').forEach(btn=>{
+    btn.addEventListener('click', ()=> switchTab(btn.dataset.goto));
+  });
+  function switchTab(name){
+    document.querySelectorAll('.tab-btn').forEach(b=> b.classList.toggle('active', b.dataset.tab===name));
+    document.querySelectorAll('.view').forEach(v=> v.classList.toggle('active', v.id==='view-'+name));
+    if(name==='newbill') populateBillCustomerSelect();
+    if(name==='bills') populateFilterCustomerSelect();
+  }
+
+  // ---------------- Rendering ----------------
+  function billsForCustomer(custId){ return state.bills.filter(b=>b.customerId===custId); }
+  function outstandingTotal(list){ return list.filter(b=>!b.paid).reduce((s,b)=>s+b.total,0); }
+
+  function renderAll(){
+    renderStats();
+    renderRecentBills();
+    renderCustomers();
+    populateBillCustomerSelect();
+    populateFilterCustomerSelect();
+    renderBillsTable();
+  }
+
+  function renderStats(){
+    const outstanding = outstandingTotal(state.bills);
+    const collected = state.bills.filter(b=>b.paid).reduce((s,b)=>s+b.total,0);
+    document.getElementById('statCustomers').textContent = state.customers.length;
+    document.getElementById('statBills').textContent = state.bills.length;
+    document.getElementById('statOutstanding').textContent = money(outstanding);
+    document.getElementById('statCollected').textContent = money(collected);
+    document.getElementById('hdrOutstanding').textContent = money(outstanding);
+  }
+
+  function billRowHtml(b, cust, withAction){
+    const custLabel = cust ? esc(cust.name) : b.customerId;
+    return `<tr data-bill="${b.id}">
+      <td class="num">${b.id}</td>
+      <td>${custLabel}</td>
+      <td class="num">${b.units}</td>
+      <td class="num">${money(b.total)}</td>
+      <td class="num cell-muted">${b.dueDate}</td>
+      <td><span class="badge ${b.paid?'paid':'unpaid'}">${b.paid?'Paid':'Unpaid'}</span></td>
+      ${withAction ? `<td><button class="btn btn-sm view-bill-btn">Open</button></td>` : ''}
+    </tr>`;
+  }
+
+  function renderRecentBills(){
+    const body = document.getElementById('recentBillsBody');
+    const recent = [...state.bills].slice(-6).reverse();
+    body.innerHTML = recent.map(b => billRowHtml(b, state.customers.find(c=>c.id===b.customerId), false)).join('');
+    document.getElementById('recentBillsEmpty').style.display = recent.length ? 'none' : 'block';
+    body.querySelectorAll('tr').forEach(tr=> tr.addEventListener('click', ()=> openDetail(tr.dataset.bill)));
+    body.parentElement.parentElement.style.cursor = recent.length ? 'default' : 'default';
+    body.querySelectorAll('tr').forEach(tr=> tr.style.cursor='pointer');
+  }
+
+  function renderCustomers(){
+    const body = document.getElementById('customersBody');
+    document.getElementById('customerCountSub').textContent = state.customers.length + ' registered';
+    body.innerHTML = state.customers.map(c => `
+      <tr data-cust="${c.id}">
+        <td class="num">${c.id}</td>
+        <td>${esc(c.name)}</td>
+        <td class="num">${esc(c.meter)}</td>
+        <td><span class="badge type-${(c.type||'domestic').toLowerCase()}">${TYPE_LABEL[c.type]||c.type}</span></td>
+        <td class="cell-muted">${esc(c.address)}</td>
+        <td><button class="btn btn-sm btn-danger del-cust-btn">Delete</button></td>
+      </tr>
+    `).join('');
+    document.getElementById('customersEmpty').style.display = state.customers.length ? 'none' : 'block';
+
+    body.querySelectorAll('.del-cust-btn').forEach(btn=>{
+      btn.addEventListener('click', function(){
+        const id = this.closest('tr').dataset.cust;
+        if(this.dataset.armed === '1'){ deleteCustomer(id); }
+        else{
+          this.dataset.armed = '1';
+          this.textContent = 'Confirm?';
+          setTimeout(()=>{ this.dataset.armed='0'; this.textContent='Delete'; }, 3000);
+        }
+      });
+    });
+  }
+
+  async function deleteCustomer(id){
+    const hasUnpaid = billsForCustomer(id).some(b=>!b.paid);
+    if(hasUnpaid){ toast('Cannot delete: this customer has unpaid bills.', true); renderCustomers(); return; }
+    state.customers = state.customers.filter(c=>c.id!==id);
+    await saveCustomers();
+    toast('Customer removed.');
+    renderAll();
+  }
+
+  function populateBillCustomerSelect(){
+    const sel = document.getElementById('billCustomer');
+    const current = sel.value;
+    sel.innerHTML = state.customers.map(c=>`<option value="${c.id}">${c.id} — ${esc(c.name)}</option>`).join('');
+    if(current) sel.value = current;
+    updatePrevReadingField();
+  }
+
+  function populateFilterCustomerSelect(){
+    const sel = document.getElementById('filterCustomer');
+    const current = sel.value;
+    sel.innerHTML = '<option value="">All customers</option>' + state.customers.map(c=>`<option value="${c.id}">${c.id} — ${esc(c.name)}</option>`).join('');
+    sel.value = current;
+  }
+
+  function renderBillsTable(){
+    const custFilter = document.getElementById('filterCustomer').value;
+    const statusFilter = document.getElementById('filterStatus').value;
+    let list = [...state.bills].reverse();
+    if(custFilter) list = list.filter(b=>b.customerId===custFilter);
+    if(statusFilter==='paid') list = list.filter(b=>b.paid);
+    if(statusFilter==='unpaid') list = list.filter(b=>!b.paid);
+
+    document.getElementById('billsCountSub').textContent = list.length + (custFilter||statusFilter ? ' matching' : ' total');
+    const body = document.getElementById('billsBody');
+    body.innerHTML = list.map(b => billRowHtml(b, state.customers.find(c=>c.id===b.customerId), true)).join('');
+    document.getElementById('billsEmpty').style.display = list.length ? 'none' : 'block';
+    document.getElementById('billsEmpty').textContent = state.bills.length
+      ? 'No bills match these filters.'
+      : 'No bills generated yet. Create one from the New bill tab.';
+
+    body.querySelectorAll('.view-bill-btn').forEach(btn=>{
+      btn.addEventListener('click', (e)=>{ e.stopPropagation(); openDetail(btn.closest('tr').dataset.bill); });
+    });
+  }
+  document.getElementById('filterCustomer').addEventListener('change', renderBillsTable);
+  document.getElementById('filterStatus').addEventListener('change', renderBillsTable);
+
+  // ---------------- New bill form ----------------
+  const billCustomerSel = document.getElementById('billCustomer');
+  const prevReadingInput = document.getElementById('billPrevReading');
+  const currReadingInput = document.getElementById('billCurrReading');
+
+  function updatePrevReadingField(){
+    const custId = billCustomerSel.value;
+    const custBills = billsForCustomer(custId);
+    if(custBills.length){
+      const last = custBills[custBills.length-1];
+      prevReadingInput.value = last.currReading;
+      prevReadingInput.readOnly = true;
+      document.getElementById('prevReadingHint').textContent = 'Auto-filled from bill ' + last.id;
+    } else {
+      prevReadingInput.value = '';
+      prevReadingInput.readOnly = false;
+      document.getElementById('prevReadingHint').textContent = 'First bill for this customer — enter the starting reading.';
+    }
+    updateBillPreview();
+  }
+  billCustomerSel.addEventListener('change', updatePrevReadingField);
+
+  function updateBillPreview(){
+    const custId = billCustomerSel.value;
+    const cust = state.customers.find(c=>c.id===custId);
+    const prev = parseInt(prevReadingInput.value, 10);
+    const curr = parseInt(currReadingInput.value, 10);
+    let units = 0;
+    if(!isNaN(prev) && !isNaN(curr) && curr >= prev) units = curr - prev;
+    const charges = calcCharges(units, cust ? cust.type : 'DOMESTIC');
+    document.getElementById('prevUnits').textContent = units;
+    document.getElementById('prevEnergy').textContent = money(charges.energy);
+    document.getElementById('prevFixed').textContent = money(charges.fixed);
+    document.getElementById('prevSurcharge').textContent = money(charges.surcharge);
+    document.getElementById('prevTotal').textContent = money(charges.total);
+  }
+  prevReadingInput.addEventListener('input', updateBillPreview);
+  currReadingInput.addEventListener('input', updateBillPreview);
+
+  document.getElementById('billForm').addEventListener('submit', async function(e){
+    e.preventDefault();
+    if(!state.customers.length){ toast('Add a customer before generating a bill.', true); return; }
+    const custId = billCustomerSel.value;
+    const cust = state.customers.find(c=>c.id===custId);
+    const prev = parseInt(prevReadingInput.value, 10);
+    const curr = parseInt(currReadingInput.value, 10);
+    if(isNaN(prev) || isNaN(curr)){ toast('Enter both meter readings.', true); return; }
+    if(curr < prev){ toast('Current reading cannot be less than the previous reading.', true); return; }
+
+    const units = curr - prev;
+    const charges = calcCharges(units, cust.type);
+    const billDate = today();
+    const bill = {
+      id: nextBillId(),
+      customerId: custId,
+      prevReading: prev,
+      currReading: curr,
+      units,
+      energyCharge: charges.energy,
+      fixedCharge: charges.fixed,
+      surcharge: charges.surcharge,
+      total: charges.total,
+      billDate,
+      dueDate: addDays(billDate, 15),
+      paid: false,
+    };
+    state.bills.push(bill);
+    await saveBills();
+    toast('Bill ' + bill.id + ' generated for ' + cust.name + '.');
+    this.reset();
+    renderAll();
+    updatePrevReadingField();
+    openDetail(bill.id);
+  });
+
+  // ---------------- Add customer form ----------------
+  document.getElementById('customerForm').addEventListener('submit', async function(e){
+    e.preventDefault();
+    const cust = {
+      id: nextCustomerId(),
+      name: document.getElementById('custName').value.trim(),
+      meter: document.getElementById('custMeter').value.trim(),
+      address: document.getElementById('custAddress').value.trim(),
+      type: document.getElementById('custType').value,
+    };
+    state.customers.push(cust);
+    await saveCustomers();
+    toast('Customer ' + cust.id + ' added.');
+    this.reset();
+    renderAll();
+  });
+
+  // ---------------- Bill detail overlay ----------------
+  const overlay = document.getElementById('detailOverlay');
+  function openDetail(billId){
+    const b = state.bills.find(x=>x.id===billId);
+    if(!b) return;
+    const cust = state.customers.find(c=>c.id===b.customerId);
+    const card = document.getElementById('detailCard');
+    card.innerHTML = `
+      <button class="btn btn-sm close-x" id="detailClose">Close</button>
+      <h3>Bill ${b.id}</h3>
+      <div class="sub">${cust ? esc(cust.name) + ' · ' + b.customerId : b.customerId}</div>
+      <div class="detail-row"><span class="k">Previous reading</span><span class="v">${b.prevReading}</span></div>
+      <div class="detail-row"><span class="k">Current reading</span><span class="v">${b.currReading}</span></div>
+      <div class="detail-row"><span class="k">Units consumed</span><span class="v">${b.units}</span></div>
+      <div class="detail-row"><span class="k">Energy charge</span><span class="v">${money(b.energyCharge)}</span></div>
+      <div class="detail-row"><span class="k">Fixed charge</span><span class="v">${money(b.fixedCharge)}</span></div>
+      <div class="detail-row"><span class="k">Surcharge</span><span class="v">${money(b.surcharge)}</span></div>
+      <div class="detail-row"><span class="k">Bill date</span><span class="v">${b.billDate}</span></div>
+      <div class="detail-row"><span class="k">Due date</span><span class="v">${b.dueDate}</span></div>
+      <div class="detail-total"><span class="k">Total</span><span class="v">${money(b.total)}</span></div>
+      <div class="detail-actions">
+        ${b.paid
+          ? `<span class="badge paid" style="padding:9px 14px;">Paid</span>`
+          : `<button class="btn btn-primary" id="markPaidBtn">Mark paid</button>`}
+      </div>
+    `;
+    overlay.classList.add('open');
+    document.getElementById('detailClose').addEventListener('click', closeDetail);
+    const payBtn = document.getElementById('markPaidBtn');
+    if(payBtn){
+      payBtn.addEventListener('click', function(){
+        if(this.dataset.armed==='1'){ markPaid(b.id); }
+        else{ this.dataset.armed='1'; this.textContent='Confirm payment'; }
+      });
+    }
+  }
+  function closeDetail(){ overlay.classList.remove('open'); }
+  overlay.addEventListener('click', (e)=>{ if(e.target===overlay) closeDetail(); });
+
+  async function markPaid(billId){
+    const b = state.bills.find(x=>x.id===billId);
+    if(!b) return;
+    b.paid = true;
+    await saveBills();
+    toast('Payment recorded for ' + b.id + '.');
+    closeDetail();
+    renderAll();
+  }
+
+  // ---------------- Init ----------------
+  (async function init(){
+    await loadState();
+    renderAll();
+    updatePrevReadingField();
+  })();
+
+})();
+</script>
+</body>
+</html>
